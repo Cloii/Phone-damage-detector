@@ -17,12 +17,11 @@
     }
     h1 { font-size: 2rem; margin-bottom: 8px; color: #ff6b35; }
     p.subtitle { color: #aaa; margin-bottom: 40px; }
-
     .container {
       display: flex;
       gap: 30px;
       width: 100%;
-      max-width: 1000px;
+      max-width: 1200px;
       flex-wrap: wrap;
     }
     .card {
@@ -33,7 +32,6 @@
       min-width: 300px;
     }
     .card h2 { font-size: 1rem; color: #aaa; margin-bottom: 16px; }
-
     .upload-area {
       border: 2px dashed #333;
       border-radius: 12px;
@@ -44,9 +42,7 @@
     }
     .upload-area:hover { border-color: #ff6b35; }
     .upload-area img { max-width: 100%; border-radius: 8px; }
-
     #fileInput { display: none; }
-
     .btn {
       width: 100%;
       padding: 14px;
@@ -61,7 +57,7 @@
     .btn:hover { opacity: 0.85; }
     .btn-submit { background: #ff6b35; color: #fff; }
     .btn-clear { background: #333; color: #fff; }
-
+    .btn-report { background: #6c35ff; color: #fff; }
     .result-img { max-width: 100%; border-radius: 8px; display: none; }
     .summary { margin-top: 16px; }
     .damage-item {
@@ -83,6 +79,23 @@
     .medium { background: #ff6b3533; color: #ff6b35; }
     .low { background: #ffcc0033; color: #ffcc00; }
     .loading { color: #aaa; text-align: center; padding: 20px; display: none; }
+    .report-box {
+      background: #0d0d0d;
+      border: 1px solid #333;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 16px;
+      white-space: pre-wrap;
+      line-height: 1.7;
+      font-size: 0.95rem;
+      color: #ddd;
+      display: none;
+    }
+    .report-box h3 {
+      color: #6c35ff;
+      margin-bottom: 12px;
+      font-size: 1rem;
+    }
   </style>
 </head>
 <body>
@@ -113,14 +126,29 @@
       <div class="loading" id="loading">⏳ Analyzing image...</div>
       <img id="resultImg" class="result-img" />
       <div class="summary" id="summary"></div>
+
+      <!-- Repair Report Button (hidden until detections appear) -->
+      <button class="btn btn-report" id="reportBtn" onclick="getRepairReport()" style="display:none">
+        🧠 Get AI Repair Report
+      </button>
+
+      <!-- Loading indicator for report -->
+      <div class="loading" id="reportLoading">🤖 Generating repair report...</div>
+
+      <!-- Report Output Box -->
+      <div class="report-box" id="reportBox">
+        <h3>🔧 AI Repair Report</h3>
+        <div id="reportContent"></div>
+      </div>
     </div>
   </div>
 
   <script>
-    // 🔁 Replace this with your Render backend URL
     const API_URL = "https://phone-damage-detector.onrender.com/detect";
+    const REPORT_URL = "https://phone-damage-detector.onrender.com/report";
 
     let selectedFile = null;
+    let lastDetections = [];
 
     function previewImage(event) {
       selectedFile = event.target.files[0];
@@ -139,6 +167,8 @@
       document.getElementById('loading').style.display = 'block';
       document.getElementById('resultImg').style.display = 'none';
       document.getElementById('summary').innerHTML = '';
+      document.getElementById('reportBtn').style.display = 'none';
+      document.getElementById('reportBox').style.display = 'none';
 
       const formData = new FormData();
       formData.append('file', selectedFile);
@@ -147,14 +177,15 @@
         const res = await fetch(API_URL, { method: 'POST', body: formData });
         const data = await res.json();
 
-        // Show result image
         const resultImg = document.getElementById('resultImg');
         resultImg.src = `data:image/jpeg;base64,${data.image}`;
         resultImg.style.display = 'block';
 
-        // Show damage summary
         const summary = document.getElementById('summary');
         summary.innerHTML = '<h2 style="color:#aaa;font-size:1rem;margin-bottom:12px">DAMAGE SUMMARY</h2>';
+
+        lastDetections = data.detections;
+
         data.detections.forEach(d => {
           const level = d.confidence > 75 ? 'high' : d.confidence > 50 ? 'medium' : 'low';
           summary.innerHTML += `
@@ -163,8 +194,12 @@
               <span class="badge ${level}">${d.confidence}% confidence</span>
             </div>`;
         });
+
         if (data.detections.length === 0) {
           summary.innerHTML += '<p style="color:#aaa">No damage detected.</p>';
+        } else {
+          // Show the AI report button only if damage was found
+          document.getElementById('reportBtn').style.display = 'block';
         }
 
       } catch (err) {
@@ -174,13 +209,39 @@
       document.getElementById('loading').style.display = 'none';
     }
 
+    async function getRepairReport() {
+      document.getElementById('reportLoading').style.display = 'block';
+      document.getElementById('reportBox').style.display = 'none';
+      document.getElementById('reportBtn').style.display = 'none';
+
+      try {
+        const res = await fetch(REPORT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ detections: lastDetections })
+        });
+        const data = await res.json();
+
+        document.getElementById('reportContent').innerText = data.report;
+        document.getElementById('reportBox').style.display = 'block';
+      } catch (err) {
+        alert("Error generating report. Try again.");
+        document.getElementById('reportBtn').style.display = 'block';
+      }
+
+      document.getElementById('reportLoading').style.display = 'none';
+    }
+
     function clearAll() {
       selectedFile = null;
+      lastDetections = [];
       document.getElementById('previewImg').style.display = 'none';
       document.getElementById('uploadPlaceholder').style.display = 'block';
       document.getElementById('resultImg').style.display = 'none';
       document.getElementById('summary').innerHTML = '';
       document.getElementById('fileInput').value = '';
+      document.getElementById('reportBtn').style.display = 'none';
+      document.getElementById('reportBox').style.display = 'none';
     }
   </script>
 </body>
