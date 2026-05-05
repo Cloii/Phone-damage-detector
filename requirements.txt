@@ -4,3 +4,4 @@ ultralytics
 pillow
 python-multipart
 groq
+python-dotenv

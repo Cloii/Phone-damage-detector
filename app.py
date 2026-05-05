@@ -5,6 +5,8 @@ from groq import Groq
 from PIL import Image
 import io, base64, uvicorn
 import os
+from dotenv import load_dotenv
+
 app = FastAPI()
 
 app.add_middleware(
@@ -15,7 +17,8 @@ app.add_middleware(
 )
 
 model = YOLO("best.pt")
-groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))  # 🔁 paste your key here
+load_dotenv()
+groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))  
 
 @app.post("/detect")
 async def detect(file: UploadFile = File(...)):
