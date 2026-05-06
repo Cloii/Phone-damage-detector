@@ -77,6 +77,8 @@ Carefully examine this phone image for ALL visible damage.
 - Partial screen blackout (section of screen not displaying correctly)
 - Pixelation or blurry zones on display
 - Rainbow or iridescent patterns on screen
+- Any other unusual screen anomalies that indicate display damage
+
 
 == PHYSICAL DAMAGE — also check ==
 - Back glass cracks or scratches
@@ -86,6 +88,16 @@ Carefully examine this phone image for ALL visible damage.
 - Camera lens scratches or cracks
 - Charging port or button damage
 - Missing pieces or chips
+- Water damage indicators (corrosion, discoloration)
+- Speaker or microphone damage (visible holes, debris)
+- SIM card tray damage or misalignment
+- Any other visible damage that looks abnormal
+- Home button or fingerprint sensor damage
+- Visible internal components (exposed circuitry, loose parts)
+- Any other signs of physical damage
+
+
+
 
 == DETECTION RULES ==
 - COLORED LINES on screen = always report as "Vertical/Horizontal display lines (LCD damage)" with 95%+ confidence
@@ -97,6 +109,7 @@ Carefully examine this phone image for ALL visible damage.
   70-89%  = clearly visible damage
   50-69%  = likely damage, possible lighting issue
   Below 50% = do NOT report
+    
 
 Respond ONLY with valid JSON, no markdown, no extra text:
 {
