@@ -1,15 +1,32 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from ultralytics import YOLO
 from groq import Groq
 from PIL import Image
 import io, base64, uvicorn, json, asyncio
 import os
+import numpy as np
 from dotenv import load_dotenv
 
 load_dotenv()
 
-app = FastAPI()
+model = YOLO("best.pt")
+groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Warmup: force YOLO through a full inference pass on startup
+    # so the first real /detect request is never slow
+    print("Warming up YOLO model...")
+    dummy = Image.fromarray(np.zeros((640, 640, 3), dtype=np.uint8))
+    model(dummy, verbose=False)
+    print("Model is hot and ready.")
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,9 +34,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-model = YOLO("best.pt")
-groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 
 def resize_image(image: Image.Image, max_size=640) -> Image.Image:
