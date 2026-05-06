@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 from groq import Groq
 from PIL import Image
-import io, base64, uvicorn, json
+import io, base64, uvicorn, json, asyncio
 import os
 from dotenv import load_dotenv
 
@@ -22,23 +22,28 @@ model = YOLO("best.pt")
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 
-@app.post("/detect")
-async def detect(file: UploadFile = File(...)):
-    image_bytes = await file.read()
-    image = Image.open(io.BytesIO(image_bytes))
+def resize_image(image: Image.Image, max_size=640) -> Image.Image:
+    w, h = image.size
+    if max(w, h) <= max_size:
+        return image
+    scale = max_size / max(w, h)
+    return image.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
 
+
+def run_yolo(image: Image.Image):
     results = model(
         image,
         conf=0.25,
         iou=0.45,
-        augment=True,
-        agnostic_nms=True
+        augment=False,
+        agnostic_nms=True,
+        imgsz=640
     )
 
     result_img = results[0].plot()
     pil_img = Image.fromarray(result_img)
     buffer = io.BytesIO()
-    pil_img.save(buffer, format="JPEG")
+    pil_img.save(buffer, format="JPEG", quality=75)
     img_str = base64.b64encode(buffer.getvalue()).decode()
 
     detections = []
@@ -50,10 +55,10 @@ async def detect(file: UploadFile = File(...)):
             "confidence": round(confidence * 100, 1)
         })
 
-    orig_b64 = base64.b64encode(image_bytes).decode()
+    return img_str, detections
 
-    # Run vision analysis immediately at /detect so frontend gets it right away
-    additional_damage = []
+
+def _groq_vision_sync(orig_b64: str):
     try:
         vision_response = groq_client.chat.completions.create(
             model="meta-llama/llama-4-scout-17b-16e-instruct",
@@ -69,52 +74,78 @@ async def detect(file: UploadFile = File(...)):
                         },
                         {
                             "type": "text",
-                            "text": """You are an expert phone damage inspector.
-Carefully examine this phone image and identify ALL physical damage you can see.
+                            "text": """You are an expert phone damage inspector with strict assessment standards.
+
+Examine this phone image carefully and identify ALL physical damage.
+
+CRITICAL RULES — READ BEFORE ANALYZING:
+- "Cracked Screen" means ONLY visible glass cracks, fracture lines, spider cracks, or shattered glass on the screen surface. Do NOT use this label for display issues.
+- "LCD Bleed" means color bleeding, dark patches, or light leaking from edges.
+- "Screen Distortion" means lines, color artifacts, flickering, or abnormal display output — this is INTERNAL display damage, NOT a crack.
+- "Dead Pixels" means black/white stuck pixels.
+- NEVER label display artifacts, color lines, or distortion as "Cracked Screen" — those are separate conditions.
+- Only report "Cracked Screen" if you can clearly see fracture lines on the glass itself.
+- If you are not 100% sure glass is cracked, do NOT include it. Use "Screen Distortion" or "LCD Damage" instead.
+- Do NOT inflate confidence scores. If you are uncertain, lower the confidence value.
 
 Respond ONLY with a JSON array. No explanation, no markdown, just raw JSON.
 Each item must have:
-- "label": short damage name (e.g. "Cracked Screen", "Broken Home Button", "Bent Frame")
-- "confidence": integer 0-100 representing how certain you are
-- "location": where on the phone (e.g. "top-left corner", "home button area", "back glass")
+- "label": precise damage name — be specific (e.g. "LCD Bleed", "Vertical Screen Distortion", "Cracked Glass", "Bent Frame")
+- "confidence": integer 0-100 — be honest, do not inflate scores
+- "location": where on the phone (e.g. "center screen", "top-left corner", "left edge")
 
-Include ALL damage found, even minor. Be aggressive — do not dismiss subtle damage.
-Check specifically for:
-- Cracked/shattered screen, LCD bleed, dead pixels, scratches
+Also check for:
 - Broken/missing/sunken home button (iPhones especially)
-- Damaged power button, volume buttons
+- Damaged power or volume buttons
 - Bent or warped frame, dents, chipped corners
 - Cracked back glass or plastic
-- Water damage discoloration or corrosion
+- Water damage discoloration or corrosion marks
 - Damaged camera lens cover
 - Loose or detached parts
 
-If no damage found, return an empty array: []
-
-Example format:
-[
-  {"label": "Cracked Screen", "confidence": 92, "location": "top-right corner"},
-  {"label": "Broken Home Button", "confidence": 78, "location": "bottom center"},
-  {"label": "Chipped Frame", "confidence": 65, "location": "left edge"}
-]"""
+If no damage found, return: []"""
                         }
                     ]
                 }
             ],
-            max_tokens=800
+            max_tokens=600
         )
         raw = vision_response.choices[0].message.content.strip()
-        # Strip markdown fences if present
         raw = raw.replace("```json", "").replace("```", "").strip()
-        additional_damage = json.loads(raw)
-    except Exception as e:
-        additional_damage = []
+        return json.loads(raw)
+    except Exception:
+        return []
+
+
+async def run_vision(orig_b64: str):
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _groq_vision_sync, orig_b64)
+
+
+@app.post("/detect")
+async def detect(file: UploadFile = File(...)):
+    image_bytes = await file.read()
+    image = Image.open(io.BytesIO(image_bytes))
+
+    resized = resize_image(image, max_size=640)
+
+    orig_buffer = io.BytesIO()
+    resized.save(orig_buffer, format="JPEG", quality=80)
+    orig_b64 = base64.b64encode(orig_buffer.getvalue()).decode()
+
+    loop = asyncio.get_event_loop()
+    yolo_future = loop.run_in_executor(None, run_yolo, resized)
+    vision_future = run_vision(orig_b64)
+
+    (img_str, detections), additional_damage = await asyncio.gather(
+        yolo_future, vision_future
+    )
 
     return {
         "image": img_str,
         "original_image": orig_b64,
         "detections": detections,
-        "additional_damage": additional_damage  # ← matches frontend exactly
+        "additional_damage": additional_damage
     }
 
 
@@ -122,7 +153,6 @@ Example format:
 async def report(data: dict):
     detections = data.get("detections", [])
     additional_damage = data.get("additional_damage", [])
-    original_image_b64 = data.get("original_image", None)
 
     damage_text = "\n".join(
         [f"- {d['label']} ({d['confidence']}% confidence)" for d in detections]
@@ -141,16 +171,19 @@ YOLO OBJECT DETECTION RESULTS:
 AI VISION INSPECTION FINDINGS:
 {vision_text}
 
-Based on ALL the above findings, provide a comprehensive damage report:
+IMPORTANT: Only include damages that are clearly supported by the findings above.
+Do NOT invent or assume damage that was not detected. If a damage type was not found, do not mention it.
 
-1. **Complete Damage Summary** — list every identified damage, including physical component damage (home button, power button, volume buttons, charging port area, camera glass, frame, back cover)
+Based on the confirmed findings, provide a comprehensive damage report:
+
+1. **Complete Damage Summary** — list only confirmed damage with location and severity
 
 2. **Severity Level** — Overall: Minor / Moderate / Severe / Critical
-   - Also rate each damage individually
+   - Rate each confirmed damage individually
 
 3. **Repair Priority** — What needs fixing immediately vs. can wait
 
-4. **Step-by-Step Repair Recommendations** — specific to each damage found
+4. **Step-by-Step Repair Recommendations** — specific to each confirmed damage
 
 5. **Estimated Repair Cost Range** (PHP and USD) — per damage type and total
 
@@ -158,12 +191,16 @@ Based on ALL the above findings, provide a comprehensive damage report:
 
 7. **Data Risk** — Is there any risk of data loss?
 
-Be thorough, specific, and do NOT downplay any damage found."""
+Be accurate and honest. Do not exaggerate or add damage that was not detected."""
 
-    response = groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=1500
+    loop = asyncio.get_event_loop()
+    response = await loop.run_in_executor(
+        None,
+        lambda: groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1200
+        )
     )
 
     return {
