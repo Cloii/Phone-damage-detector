@@ -2,246 +2,322 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Phone Damage Detector</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background: #0f0f0f;
-      color: #fff;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px 20px;
-    }
-    h1 { font-size: 2rem; margin-bottom: 8px; color: #ff6b35; }
-    p.subtitle { color: #aaa; margin-bottom: 40px; }
-    .container {
-      display: flex;
-      gap: 30px;
-      width: 100%;
-      max-width: 1200px;
-      flex-wrap: wrap;
-    }
-    .card {
-      background: #1a1a1a;
-      border-radius: 16px;
-      padding: 24px;
-      flex: 1;
-      min-width: 300px;
-    }
-    .card h2 { font-size: 1rem; color: #aaa; margin-bottom: 16px; }
-    .upload-area {
-      border: 2px dashed #333;
-      border-radius: 12px;
-      padding: 40px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color 0.2s;
-    }
-    .upload-area:hover { border-color: #ff6b35; }
-    .upload-area img { max-width: 100%; border-radius: 8px; }
-    #fileInput { display: none; }
-    .btn {
-      width: 100%;
-      padding: 14px;
-      border: none;
-      border-radius: 10px;
-      font-size: 1rem;
-      font-weight: bold;
-      cursor: pointer;
-      margin-top: 12px;
-      transition: opacity 0.2s;
-    }
-    .btn:hover { opacity: 0.85; }
-    .btn-submit { background: #ff6b35; color: #fff; }
-    .btn-clear { background: #333; color: #fff; }
-    .btn-report { background: #6c35ff; color: #fff; }
-    .result-img { max-width: 100%; border-radius: 8px; display: none; }
-    .summary { margin-top: 16px; }
-    .damage-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 14px;
-      background: #252525;
-      border-radius: 8px;
-      margin-bottom: 8px;
-    }
-    .badge {
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 0.8rem;
-      font-weight: bold;
-    }
-    .high { background: #ff3b3b33; color: #ff3b3b; }
-    .medium { background: #ff6b3533; color: #ff6b35; }
-    .low { background: #ffcc0033; color: #ffcc00; }
-    .loading { color: #aaa; text-align: center; padding: 20px; display: none; }
-    .report-box {
-      background: #0d0d0d;
-      border: 1px solid #333;
-      border-radius: 12px;
-      padding: 20px;
-      margin-top: 16px;
-      white-space: pre-wrap;
-      line-height: 1.7;
-      font-size: 0.95rem;
-      color: #ddd;
-      display: none;
-    }
-    .report-box h3 {
-      color: #6c35ff;
-      margin-bottom: 12px;
-      font-size: 1rem;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CrackScan — AI Phone Damage Detection</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
 
-  <h1>📱 Phone Damage Detector</h1>
-  <p class="subtitle">Upload a phone image to detect scratches, dead pixels, or cracks</p>
+  <!-- HEADER -->
+  <header>
+    <a class="logo" href="#">
+      <span class="logo-mark">CrackScan</span>
+      <span class="logo-dot"></span>
+      <span class="logo-sub">v1</span>
+    </a>
+    <div style="display:flex;align-items:center;gap:14px">
+      <span class="status-dot"></span>
+      <span class="header-badge">AI Model Active</span>
+    </div>
+  </header>
 
-  <div class="container">
-    <!-- Upload Card -->
-    <div class="card">
-      <h2>UPLOAD IMAGE</h2>
-      <div class="upload-area" onclick="document.getElementById('fileInput').click()">
-        <img id="previewImg" src="" alt="" style="display:none"/>
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-eyebrow">Powered by Machine Learning</div>
+    <h1 class="hero-title">Detect Every <span>Flaw</span></h1>
+    <p class="hero-sub">Upload a phone photo — CrackScan detects cracks, scratches &amp; dead pixels in seconds.</p>
+  </section>
+
+  <!-- MAIN GRID -->
+  <div class="scan-grid">
+
+    <!-- PANEL: UPLOAD -->
+    <div class="panel">
+      <div class="panel-label">Input Image</div>
+
+      <div class="drop-zone" id="dropZone"
+           onclick="document.getElementById('fileInput').click()"
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)"
+           ondrop="handleDrop(event)">
+        <img id="previewImg" src="" alt="Preview"/>
         <div id="uploadPlaceholder">
-          <p style="font-size:2rem">📤</p>
-          <p>Click to upload or drag & drop</p>
-          <p style="color:#666; font-size:0.85rem">JPG, PNG supported</p>
+          <div class="drop-icon">📱</div>
+          <div class="drop-text">
+            <strong>Drop your image here</strong>
+            Click to browse files
+          </div>
+          <div class="drop-hint">JPG · PNG · WEBP</div>
         </div>
+        <div class="drag-overlay" id="dragOverlay">Release to load</div>
       </div>
+
       <input type="file" id="fileInput" accept="image/*" onchange="previewImage(event)" />
-      <button class="btn btn-submit" onclick="submitImage()">🔍 Analyze Damage</button>
-      <button class="btn btn-clear" onclick="clearAll()">✕ Clear</button>
+
+      <div class="btn-row">
+        <button class="btn btn-scan" id="scanBtn" onclick="submitImage()" disabled>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          Run Scan
+        </button>
+        <button class="btn btn-clear" onclick="clearAll()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          Clear
+        </button>
+      </div>
+
+      <div class="loading-wrap" id="loading">
+        <div class="spinner"></div>
+        <span>Scanning for damage…</span>
+      </div>
     </div>
 
-    <!-- Result Card -->
-    <div class="card">
-      <h2>DETECTION RESULT</h2>
-      <div class="loading" id="loading">⏳ Analyzing image...</div>
-      <img id="resultImg" class="result-img" />
-      <div class="summary" id="summary"></div>
+    <!-- PANEL: RESULTS -->
+    <div class="panel">
+      <div class="panel-label">Detection Result</div>
 
-      <!-- Repair Report Button (hidden until detections appear) -->
-      <button class="btn btn-report" id="reportBtn" onclick="getRepairReport()" style="display:none">
-        🧠 Get AI Repair Report
+      <div class="result-img-wrap" id="resultWrap">
+        <div class="result-placeholder" id="resultPlaceholder">
+          <div class="icon">🔬</div>
+          <p>Scan results will appear here</p>
+        </div>
+        <img id="resultImg" alt="Result"/>
+        <div class="scan-line" id="scanLine"></div>
+      </div>
+
+      <div class="detections" id="detections"></div>
+
+      <button class="btn btn-report" id="reportBtn" onclick="getRepairReport()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="m9 12 2 2 4-4"/></svg>
+        Generate Repair Report
       </button>
 
-      <!-- Loading indicator for report -->
-      <div class="loading" id="reportLoading">🤖 Generating repair report...</div>
+      <div class="loading-wrap" id="reportLoading">
+        <div class="spinner"></div>
+        <span>Building AI repair report…</span>
+      </div>
 
-      <!-- Report Output Box -->
       <div class="report-box" id="reportBox">
-        <h3>🔧 AI Repair Report</h3>
+        <div class="report-title">AI Repair Analysis</div>
         <div id="reportContent"></div>
       </div>
     </div>
-  </div>
+
+  </div><!-- /scan-grid -->
+
+  <!-- FOOTER -->
+  <footer>
+    <span>CrackScan</span> — AI-Powered Phone Damage Detection &nbsp;·&nbsp; Built with Machine Learning
+  </footer>
 
   <script>
-    const API_URL = "https://phone-damage-detector.onrender.com/detect";
+    const API_URL    = "https://phone-damage-detector.onrender.com/detect";
     const REPORT_URL = "https://phone-damage-detector.onrender.com/report";
 
-    let selectedFile = null;
-    let lastDetections = [];
+    let selectedFile    = null;
+    let lastDetections  = [];
+    let lastAdditional  = [];  // stores Groq Vision findings
 
-    function previewImage(event) {
-      selectedFile = event.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        document.getElementById('previewImg').src = e.target.result;
-        document.getElementById('previewImg').style.display = 'block';
-        document.getElementById('uploadPlaceholder').style.display = 'none';
-      };
-      reader.readAsDataURL(selectedFile);
+    /* ── DRAG & DROP ── */
+    function handleDragOver(e) {
+      e.preventDefault();
+      document.getElementById('dropZone').classList.add('drag-over');
+      document.getElementById('dragOverlay').style.display = 'flex';
+    }
+    function handleDragLeave() {
+      document.getElementById('dropZone').classList.remove('drag-over');
+      document.getElementById('dragOverlay').style.display = 'none';
+    }
+    function handleDrop(e) {
+      e.preventDefault();
+      handleDragLeave();
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) loadFile(file);
     }
 
-    async function submitImage() {
-      if (!selectedFile) return alert("Please upload an image first!");
+    /* ── FILE PREVIEW ── */
+    function previewImage(event) { loadFile(event.target.files[0]); }
 
-      document.getElementById('loading').style.display = 'block';
-      document.getElementById('resultImg').style.display = 'none';
-      document.getElementById('summary').innerHTML = '';
-      document.getElementById('reportBtn').style.display = 'none';
-      document.getElementById('reportBox').style.display = 'none';
+    function loadFile(file) {
+      selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const prev = document.getElementById('previewImg');
+        prev.src = e.target.result;
+        prev.style.display = 'block';
+        document.getElementById('uploadPlaceholder').style.display = 'none';
+        document.getElementById('dropZone').classList.add('has-image');
+        document.getElementById('scanBtn').disabled = false;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    /* ── SUBMIT ── */
+    async function submitImage() {
+      if (!selectedFile) return;
+
+      document.getElementById('resultImg').style.display          = 'none';
+      document.getElementById('resultPlaceholder').style.display  = 'none';
+      document.getElementById('detections').innerHTML             = '';
+      document.getElementById('reportBtn').style.display          = 'none';
+      document.getElementById('reportBox').style.display          = 'none';
+      document.getElementById('loading').style.display            = 'flex';
+      document.getElementById('scanLine').style.display           = 'block';
+      document.getElementById('scanBtn').disabled                 = true;
 
       const formData = new FormData();
       formData.append('file', selectedFile);
 
       try {
-        const res = await fetch(API_URL, { method: 'POST', body: formData });
+        const res  = await fetch(API_URL, { method: 'POST', body: formData });
         const data = await res.json();
 
         const resultImg = document.getElementById('resultImg');
         resultImg.src = `data:image/jpeg;base64,${data.image}`;
         resultImg.style.display = 'block';
+        document.getElementById('scanLine').style.display = 'none';
 
-        const summary = document.getElementById('summary');
-        summary.innerHTML = '<h2 style="color:#aaa;font-size:1rem;margin-bottom:12px">DAMAGE SUMMARY</h2>';
+        // Store both YOLO and Vision results
+        lastDetections = data.detections        || [];
+        lastAdditional = data.additional_damage || [];
 
-        lastDetections = data.detections;
-
-        data.detections.forEach(d => {
-          const level = d.confidence > 75 ? 'high' : d.confidence > 50 ? 'medium' : 'low';
-          summary.innerHTML += `
-            <div class="damage-item">
-              <span>${d.label}</span>
-              <span class="badge ${level}">${d.confidence}% confidence</span>
-            </div>`;
-        });
-
-        if (data.detections.length === 0) {
-          summary.innerHTML += '<p style="color:#aaa">No damage detected.</p>';
-        } else {
-          // Show the AI report button only if damage was found
-          document.getElementById('reportBtn').style.display = 'block';
-        }
+        renderDetections(lastDetections, lastAdditional);
 
       } catch (err) {
-        alert("Error connecting to server. Is your backend running?");
+        document.getElementById('scanLine').style.display = 'none';
+        document.getElementById('resultPlaceholder').style.display = 'flex';
+        showToast('⚠️ Could not connect to server. Is the backend running?');
       }
 
       document.getElementById('loading').style.display = 'none';
+      document.getElementById('scanBtn').disabled = false;
     }
 
+    /* ── RENDER DETECTIONS ── */
+    const damageIcons = {
+      crack: '💔', scratch: '✦', dead: '⬛', screen: '📺',
+      dent: '🔨', water: '💧', default: '⚠️'
+    };
+
+    function getDamageIcon(label) {
+      const l = label.toLowerCase();
+      for (const [k, v] of Object.entries(damageIcons)) {
+        if (l.includes(k)) return v;
+      }
+      return damageIcons.default;
+    }
+
+    function buildDamageItem(label, confidence, location, icon, delay) {
+      const sev   = confidence > 75 ? 'sev-high' : confidence > 50 ? 'sev-medium' : 'sev-low';
+      const badge = confidence > 75 ? 'Critical'  : confidence > 50 ? 'Moderate'   : 'Minor';
+      const item  = document.createElement('div');
+      item.className = `damage-item ${sev}`;
+      item.style.animationDelay = `${delay * 0.08}s`;
+      item.innerHTML = `
+        <span class="damage-icon">${icon}</span>
+        <span class="damage-name">
+          ${label}
+          ${location ? `<span class="damage-location">${location}</span>` : ''}
+        </span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div><div class="conf-bar-wrap"><div class="conf-bar" style="width:${confidence}%"></div></div></div>
+          <span class="damage-conf">${confidence}%</span>
+          <span class="sev-badge">${badge}</span>
+        </div>`;
+      return item;
+    }
+
+    function renderDetections(detections, additional) {
+      const el = document.getElementById('detections');
+      el.innerHTML = '';
+
+      if ((!detections || detections.length === 0) && (!additional || additional.length === 0)) {
+        el.innerHTML = '<div class="no-damage">✓ No damage detected — device looks clean!</div>';
+        return;
+      }
+
+      // YOLO detections
+      if (detections && detections.length > 0) {
+        el.innerHTML = '<div class="detections-label">Damage Found</div>';
+        detections.forEach((d, i) => {
+          el.appendChild(buildDamageItem(d.label, d.confidence, null, getDamageIcon(d.label), i));
+        });
+      }
+
+      // AI Vision findings
+      if (additional && additional.length > 0) {
+        const aiLabel = document.createElement('div');
+        aiLabel.className = 'detections-label ai-label';
+        aiLabel.style.marginTop = '14px';
+        aiLabel.textContent = 'AI Vision Findings';
+        el.appendChild(aiLabel);
+
+        additional.forEach((d, i) => {
+          el.appendChild(buildDamageItem(d.label, d.confidence, d.location || null, '🤖', i));
+        });
+      }
+
+      document.getElementById('reportBtn').style.display = 'flex';
+    }
+
+    /* ── REPAIR REPORT ── */
     async function getRepairReport() {
-      document.getElementById('reportLoading').style.display = 'block';
-      document.getElementById('reportBox').style.display = 'none';
-      document.getElementById('reportBtn').style.display = 'none';
+      document.getElementById('reportBox').style.display     = 'none';
+      document.getElementById('reportBtn').style.display     = 'none';
+      document.getElementById('reportLoading').style.display = 'flex';
 
       try {
-        const res = await fetch(REPORT_URL, {
+        const res  = await fetch(REPORT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ detections: lastDetections })
+          // Send both YOLO and Vision results to backend
+          body: JSON.stringify({ detections: lastDetections, additional_damage: lastAdditional })
         });
         const data = await res.json();
 
         document.getElementById('reportContent').innerText = data.report;
         document.getElementById('reportBox').style.display = 'block';
       } catch (err) {
-        alert("Error generating report. Try again.");
-        document.getElementById('reportBtn').style.display = 'block';
+        showToast('⚠️ Could not generate report. Try again.');
+        document.getElementById('reportBtn').style.display = 'flex';
       }
 
       document.getElementById('reportLoading').style.display = 'none';
     }
 
+    /* ── CLEAR ── */
     function clearAll() {
-      selectedFile = null;
+      selectedFile   = null;
       lastDetections = [];
-      document.getElementById('previewImg').style.display = 'none';
-      document.getElementById('uploadPlaceholder').style.display = 'block';
-      document.getElementById('resultImg').style.display = 'none';
-      document.getElementById('summary').innerHTML = '';
-      document.getElementById('fileInput').value = '';
-      document.getElementById('reportBtn').style.display = 'none';
-      document.getElementById('reportBox').style.display = 'none';
+      lastAdditional = [];
+
+      document.getElementById('previewImg').style.display         = 'none';
+      document.getElementById('uploadPlaceholder').style.display  = 'block';
+      document.getElementById('dropZone').classList.remove('has-image', 'drag-over');
+      document.getElementById('fileInput').value                  = '';
+      document.getElementById('scanBtn').disabled                 = true;
+
+      document.getElementById('resultImg').style.display          = 'none';
+      document.getElementById('resultPlaceholder').style.display  = 'flex';
+      document.getElementById('detections').innerHTML             = '';
+      document.getElementById('reportBtn').style.display          = 'none';
+      document.getElementById('reportBox').style.display          = 'none';
+      document.getElementById('scanLine').style.display           = 'none';
+    }
+
+    /* ── TOAST ── */
+    function showToast(msg) {
+      const t = document.createElement('div');
+      t.style.cssText = `
+        position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
+        background:#1f2328;border:1px solid #333;color:#e8eaed;
+        padding:12px 22px;border-radius:8px;font-size:0.85rem;
+        z-index:9999;animation:fadeUp 0.3s forwards;
+        box-shadow:0 8px 24px rgba(0,0,0,0.5);
+      `;
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 3500);
     }
   </script>
 </body>
