@@ -31,6 +31,10 @@ def resize_image(image: Image.Image, max_size=640) -> Image.Image:
 
 
 def run_yolo(image: Image.Image):
+    # Fix: convert RGBA/PNG to RGB before YOLO
+    if image.mode in ("RGBA", "P", "LA"):
+        image = image.convert("RGB")
+
     results = model(
         image,
         conf=0.25,
@@ -42,6 +46,11 @@ def run_yolo(image: Image.Image):
 
     result_img = results[0].plot()
     pil_img = Image.fromarray(result_img)
+
+    # Fix: ensure result image is also RGB before saving as JPEG
+    if pil_img.mode in ("RGBA", "P", "LA"):
+        pil_img = pil_img.convert("RGB")
+
     buffer = io.BytesIO()
     pil_img.save(buffer, format="JPEG", quality=75)
     img_str = base64.b64encode(buffer.getvalue()).decode()
@@ -122,6 +131,11 @@ async def run_vision(orig_b64: str):
     return await loop.run_in_executor(None, _groq_vision_sync, orig_b64)
 
 
+@app.get("/ping")
+async def ping():
+    return {"status": "ok"}
+
+
 @app.post("/detect")
 async def detect(file: UploadFile = File(...)):
     image_bytes = await file.read()
@@ -129,17 +143,27 @@ async def detect(file: UploadFile = File(...)):
 
     resized = resize_image(image, max_size=640)
 
+    # Fix: convert RGBA/PNG to RGB before saving as JPEG
+    if resized.mode in ("RGBA", "P", "LA"):
+        resized = resized.convert("RGB")
+
     orig_buffer = io.BytesIO()
     resized.save(orig_buffer, format="JPEG", quality=80)
     orig_b64 = base64.b64encode(orig_buffer.getvalue()).decode()
 
+    # Run YOLO and Vision in parallel
     loop = asyncio.get_event_loop()
     yolo_future = loop.run_in_executor(None, run_yolo, resized)
     vision_future = run_vision(orig_b64)
 
-    (img_str, detections), additional_damage = await asyncio.gather(
-        yolo_future, vision_future
-    )
+    try:
+        (img_str, detections), additional_damage = await asyncio.gather(
+            yolo_future, vision_future
+        )
+    except Exception:
+        # Fallback if parallel execution fails
+        img_str, detections = run_yolo(resized)
+        additional_damage = []
 
     return {
         "image": img_str,
