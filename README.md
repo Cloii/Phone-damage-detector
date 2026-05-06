@@ -10,8 +10,6 @@ An AI-powered web application that detects physical damage on smartphones using 
 
 ## 📸 Screenshots
 
-> 💡 Replace the placeholders below with your actual screenshots. See [how to add images to a README](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#images).
-
 **🏠 Home Page**
 ![Home Page](screenshots/scrnshot1.png)
 
