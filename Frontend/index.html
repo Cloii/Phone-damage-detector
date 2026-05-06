@@ -111,214 +111,224 @@
   </footer>
 
   <script>
-    const API_URL    = "https://phone-damage-detector.onrender.com/detect";
-    const REPORT_URL = "https://phone-damage-detector.onrender.com/report";
+   const API_URL    = "https://phone-damage-detector.onrender.com/detect";
+const REPORT_URL = "https://phone-damage-detector.onrender.com/report";
 
-    let selectedFile    = null;
-    let lastDetections  = [];
-    let lastAdditional  = [];  // stores Groq Vision findings
+let selectedFile    = null;
+let lastDetections  = [];
+let lastAdditional  = [];
+let lastOriginalImg = null; // ← store original_image for /report
 
-    /* ── DRAG & DROP ── */
-    function handleDragOver(e) {
-      e.preventDefault();
-      document.getElementById('dropZone').classList.add('drag-over');
-      document.getElementById('dragOverlay').style.display = 'flex';
-    }
-    function handleDragLeave() {
-      document.getElementById('dropZone').classList.remove('drag-over');
-      document.getElementById('dragOverlay').style.display = 'none';
-    }
-    function handleDrop(e) {
-      e.preventDefault();
-      handleDragLeave();
-      const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) loadFile(file);
-    }
+/* ── DRAG & DROP ── */
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.add('drag-over');
+  document.getElementById('dragOverlay').style.display = 'flex';
+}
+function handleDragLeave() {
+  document.getElementById('dropZone').classList.remove('drag-over');
+  document.getElementById('dragOverlay').style.display = 'none';
+}
+function handleDrop(e) {
+  e.preventDefault();
+  handleDragLeave();
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadFile(file);
+}
 
-    /* ── FILE PREVIEW ── */
-    function previewImage(event) { loadFile(event.target.files[0]); }
+/* ── FILE PREVIEW ── */
+function previewImage(event) { loadFile(event.target.files[0]); }
 
-    function loadFile(file) {
-      selectedFile = file;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const prev = document.getElementById('previewImg');
-        prev.src = e.target.result;
-        prev.style.display = 'block';
-        document.getElementById('uploadPlaceholder').style.display = 'none';
-        document.getElementById('dropZone').classList.add('has-image');
-        document.getElementById('scanBtn').disabled = false;
-      };
-      reader.readAsDataURL(file);
-    }
+function loadFile(file) {
+  selectedFile = file;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const prev = document.getElementById('previewImg');
+    prev.src = e.target.result;
+    prev.style.display = 'block';
+    document.getElementById('uploadPlaceholder').style.display = 'none';
+    document.getElementById('dropZone').classList.add('has-image');
+    document.getElementById('scanBtn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
 
-    /* ── SUBMIT ── */
-    async function submitImage() {
-      if (!selectedFile) return;
+/* ── SUBMIT ── */
+async function submitImage() {
+  if (!selectedFile) return;
 
-      document.getElementById('resultImg').style.display          = 'none';
-      document.getElementById('resultPlaceholder').style.display  = 'none';
-      document.getElementById('detections').innerHTML             = '';
-      document.getElementById('reportBtn').style.display          = 'none';
-      document.getElementById('reportBox').style.display          = 'none';
-      document.getElementById('loading').style.display            = 'flex';
-      document.getElementById('scanLine').style.display           = 'block';
-      document.getElementById('scanBtn').disabled                 = true;
+  document.getElementById('resultImg').style.display          = 'none';
+  document.getElementById('resultPlaceholder').style.display  = 'none';
+  document.getElementById('detections').innerHTML             = '';
+  document.getElementById('reportBtn').style.display          = 'none';
+  document.getElementById('reportBox').style.display          = 'none';
+  document.getElementById('loading').style.display            = 'flex';
+  document.getElementById('scanLine').style.display           = 'block';
+  document.getElementById('scanBtn').disabled                 = true;
 
-      const formData = new FormData();
-      formData.append('file', selectedFile);
+  const formData = new FormData();
+  formData.append('file', selectedFile);
 
-      try {
-        const res  = await fetch(API_URL, { method: 'POST', body: formData });
-        const data = await res.json();
+  try {
+    const res  = await fetch(API_URL, { method: 'POST', body: formData });
+    const data = await res.json();
 
-        const resultImg = document.getElementById('resultImg');
-        resultImg.src = `data:image/jpeg;base64,${data.image}`;
-        resultImg.style.display = 'block';
-        document.getElementById('scanLine').style.display = 'none';
+    const resultImg = document.getElementById('resultImg');
+    resultImg.src = `data:image/jpeg;base64,${data.image}`;
+    resultImg.style.display = 'block';
+    document.getElementById('scanLine').style.display = 'none';
 
-        // Store both YOLO and Vision results
-        lastDetections = data.detections        || [];
-        lastAdditional = data.additional_damage || [];
+    lastDetections  = data.detections       || [];
+    lastAdditional  = data.additional_damage || []; // ← now matches backend
+    lastOriginalImg = data.original_image   || null; // ← save for report
 
-        renderDetections(lastDetections, lastAdditional);
+    renderDetections(lastDetections, lastAdditional);
 
-      } catch (err) {
-        document.getElementById('scanLine').style.display = 'none';
-        document.getElementById('resultPlaceholder').style.display = 'flex';
-        showToast('⚠️ Could not connect to server. Is the backend running?');
-      }
+  } catch (err) {
+    document.getElementById('scanLine').style.display = 'none';
+    document.getElementById('resultPlaceholder').style.display = 'flex';
+    showToast('⚠️ Could not connect to server. Is the backend running?');
+  }
 
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('scanBtn').disabled = false;
-    }
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('scanBtn').disabled = false;
+}
 
-    /* ── RENDER DETECTIONS ── */
-    const damageIcons = {
-      crack: '💔', scratch: '✦', dead: '⬛', screen: '📺',
-      dent: '🔨', water: '💧', default: '⚠️'
-    };
+/* ── RENDER DETECTIONS ── */
+const damageIcons = {
+  crack: '💔', scratch: '✦', dead: '⬛', screen: '📺',
+  dent: '🔨', water: '💧', button: '🔘', frame: '📐',
+  camera: '📷', default: '⚠️'
+};
 
-    function getDamageIcon(label) {
-      const l = label.toLowerCase();
-      for (const [k, v] of Object.entries(damageIcons)) {
-        if (l.includes(k)) return v;
-      }
-      return damageIcons.default;
-    }
+function getDamageIcon(label) {
+  const l = label.toLowerCase();
+  for (const [k, v] of Object.entries(damageIcons)) {
+    if (l.includes(k)) return v;
+  }
+  return damageIcons.default;
+}
 
-    function buildDamageItem(label, confidence, location, icon, delay) {
-      const sev   = confidence > 75 ? 'sev-high' : confidence > 50 ? 'sev-medium' : 'sev-low';
-      const badge = confidence > 75 ? 'Critical'  : confidence > 50 ? 'Moderate'   : 'Minor';
-      const item  = document.createElement('div');
-      item.className = `damage-item ${sev}`;
-      item.style.animationDelay = `${delay * 0.08}s`;
-      item.innerHTML = `
-        <span class="damage-icon">${icon}</span>
-        <span class="damage-name">
-          ${label}
-          ${location ? `<span class="damage-location">${location}</span>` : ''}
-        </span>
-        <div style="display:flex;align-items:center;gap:10px">
-          <div><div class="conf-bar-wrap"><div class="conf-bar" style="width:${confidence}%"></div></div></div>
-          <span class="damage-conf">${confidence}%</span>
-          <span class="sev-badge">${badge}</span>
-        </div>`;
-      return item;
-    }
+function buildDamageItem(label, confidence, location, icon, delay) {
+  const sev   = confidence > 75 ? 'sev-high' : confidence > 50 ? 'sev-medium' : 'sev-low';
+  const badge = confidence > 75 ? 'Critical'  : confidence > 50 ? 'Moderate'   : 'Minor';
+  const item  = document.createElement('div');
+  item.className = `damage-item ${sev}`;
+  item.style.animationDelay = `${delay * 0.08}s`;
+  item.innerHTML = `
+    <span class="damage-icon">${icon}</span>
+    <span class="damage-name">
+      ${label}
+      ${location ? `<span class="damage-location">${location}</span>` : ''}
+    </span>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div><div class="conf-bar-wrap"><div class="conf-bar" style="width:${confidence}%"></div></div></div>
+      <span class="damage-conf">${confidence}%</span>
+      <span class="sev-badge">${badge}</span>
+    </div>`;
+  return item;
+}
 
-    function renderDetections(detections, additional) {
-      const el = document.getElementById('detections');
-      el.innerHTML = '';
+function renderDetections(detections, additional) {
+  const el = document.getElementById('detections');
+  el.innerHTML = '';
 
-      if ((!detections || detections.length === 0) && (!additional || additional.length === 0)) {
-        el.innerHTML = '<div class="no-damage">✓ No damage detected — device looks clean!</div>';
-        return;
-      }
+  if ((!detections || detections.length === 0) && (!additional || additional.length === 0)) {
+    el.innerHTML = '<div class="no-damage">✓ No damage detected — device looks clean!</div>';
+    return;
+  }
 
-      // YOLO detections
-      if (detections && detections.length > 0) {
-        el.innerHTML = '<div class="detections-label">Damage Found</div>';
-        detections.forEach((d, i) => {
-          el.appendChild(buildDamageItem(d.label, d.confidence, null, getDamageIcon(d.label), i));
-        });
-      }
+  if (detections && detections.length > 0) {
+    el.innerHTML = '<div class="detections-label">Damage Found</div>';
+    detections.forEach((d, i) => {
+      el.appendChild(buildDamageItem(d.label, d.confidence, null, getDamageIcon(d.label), i));
+    });
+  }
 
-      // AI Vision findings
-      if (additional && additional.length > 0) {
-        const aiLabel = document.createElement('div');
-        aiLabel.className = 'detections-label ai-label';
-        aiLabel.style.marginTop = '14px';
-        aiLabel.textContent = 'AI Vision Findings';
-        el.appendChild(aiLabel);
+  if (additional && additional.length > 0) {
+    const aiLabel = document.createElement('div');
+    aiLabel.className = 'detections-label ai-label';
+    aiLabel.style.marginTop = '14px';
+    aiLabel.textContent = 'AI Vision Findings';
+    el.appendChild(aiLabel);
 
-        additional.forEach((d, i) => {
-          el.appendChild(buildDamageItem(d.label, d.confidence, d.location || null, '🤖', i));
-        });
-      }
+    additional.forEach((d, i) => {
+      el.appendChild(buildDamageItem(
+        d.label,
+        d.confidence,
+        d.location || null,
+        getDamageIcon(d.label),  // ← use proper icon instead of always 🤖
+        i
+      ));
+    });
+  }
 
-      document.getElementById('reportBtn').style.display = 'flex';
-    }
+  document.getElementById('reportBtn').style.display = 'flex';
+}
 
-    /* ── REPAIR REPORT ── */
-    async function getRepairReport() {
-      document.getElementById('reportBox').style.display     = 'none';
-      document.getElementById('reportBtn').style.display     = 'none';
-      document.getElementById('reportLoading').style.display = 'flex';
+/* ── REPAIR REPORT ── */
+async function getRepairReport() {
+  document.getElementById('reportBox').style.display     = 'none';
+  document.getElementById('reportBtn').style.display     = 'none';
+  document.getElementById('reportLoading').style.display = 'flex';
 
-      try {
-        const res  = await fetch(REPORT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // Send both YOLO and Vision results to backend
-          body: JSON.stringify({ detections: lastDetections, additional_damage: lastAdditional })
-        });
-        const data = await res.json();
+  try {
+    const res  = await fetch(REPORT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        detections:       lastDetections,
+        additional_damage: lastAdditional,  // ← pass vision findings
+        original_image:   lastOriginalImg   // ← pass original image
+      })
+    });
+    const data = await res.json();
 
-        document.getElementById('reportContent').innerText = data.report;
-        document.getElementById('reportBox').style.display = 'block';
-      } catch (err) {
-        showToast('⚠️ Could not generate report. Try again.');
-        document.getElementById('reportBtn').style.display = 'flex';
-      }
+    document.getElementById('reportContent').innerText = data.report;
+    document.getElementById('reportBox').style.display = 'block';
+  } catch (err) {
+    showToast('⚠️ Could not generate report. Try again.');
+    document.getElementById('reportBtn').style.display = 'flex';
+  }
 
-      document.getElementById('reportLoading').style.display = 'none';
-    }
+  document.getElementById('reportLoading').style.display = 'none';
+}
 
-    /* ── CLEAR ── */
-    function clearAll() {
-      selectedFile   = null;
-      lastDetections = [];
-      lastAdditional = [];
+/* ── CLEAR ── */
+function clearAll() {
+  selectedFile    = null;
+  lastDetections  = [];
+  lastAdditional  = [];
+  lastOriginalImg = null;
 
-      document.getElementById('previewImg').style.display         = 'none';
-      document.getElementById('uploadPlaceholder').style.display  = 'block';
-      document.getElementById('dropZone').classList.remove('has-image', 'drag-over');
-      document.getElementById('fileInput').value                  = '';
-      document.getElementById('scanBtn').disabled                 = true;
+  document.getElementById('previewImg').style.display         = 'none';
+  document.getElementById('uploadPlaceholder').style.display  = 'block';
+  document.getElementById('dropZone').classList.remove('has-image', 'drag-over');
+  document.getElementById('fileInput').value                  = '';
+  document.getElementById('scanBtn').disabled                 = true;
 
-      document.getElementById('resultImg').style.display          = 'none';
-      document.getElementById('resultPlaceholder').style.display  = 'flex';
-      document.getElementById('detections').innerHTML             = '';
-      document.getElementById('reportBtn').style.display          = 'none';
-      document.getElementById('reportBox').style.display          = 'none';
-      document.getElementById('scanLine').style.display           = 'none';
-    }
+  document.getElementById('resultImg').style.display          = 'none';
+  document.getElementById('resultPlaceholder').style.display  = 'flex';
+  document.getElementById('detections').innerHTML             = '';
+  document.getElementById('reportBtn').style.display          = 'none';
+  document.getElementById('reportBox').style.display          = 'none';
+  document.getElementById('scanLine').style.display           = 'none';
+}
 
-    /* ── TOAST ── */
-    function showToast(msg) {
-      const t = document.createElement('div');
-      t.style.cssText = `
-        position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
-        background:#1f2328;border:1px solid #333;color:#e8eaed;
-        padding:12px 22px;border-radius:8px;font-size:0.85rem;
-        z-index:9999;animation:fadeUp 0.3s forwards;
-        box-shadow:0 8px 24px rgba(0,0,0,0.5);
-      `;
-      t.textContent = msg;
-      document.body.appendChild(t);
-      setTimeout(() => t.remove(), 3500);
-    }
+/* ── TOAST ── */
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.style.cssText = `
+    position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
+    background:#1f2328;border:1px solid #333;color:#e8eaed;
+    padding:12px 22px;border-radius:8px;font-size:0.85rem;
+    z-index:9999;animation:fadeUp 0.3s forwards;
+    box-shadow:0 8px 24px rgba(0,0,0,0.5);
+  `;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
   </script>
 </body>
 </html>
