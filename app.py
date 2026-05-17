@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from ultralytics import YOLO
 from groq import Groq
 from PIL import Image
-import io, base64, uvicorn, json, asyncio
+import io, base64, uvicorn, json, asyncio, time
 import os
 import numpy as np
 from dotenv import load_dotenv
@@ -145,9 +145,10 @@ async def run_vision(orig_b64: str):
     return await loop.run_in_executor(None, _groq_vision_sync, orig_b64)
 
 
+# ── Keep-alive endpoint ────────────────────────────────────────────────────
 @app.get("/ping")
 async def ping():
-    return {"status": "ok"}
+    return {"status": "ok", "ts": int(time.time())}
 
 
 @app.post("/detect")
