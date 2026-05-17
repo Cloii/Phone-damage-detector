@@ -4,12 +4,15 @@ from contextlib import asynccontextmanager
 from ultralytics import YOLO
 from groq import Groq
 from PIL import Image
-import io, base64, uvicorn, json, asyncio, time
+import io, base64, uvicorn, json, asyncio, time, gc
 import os
 import numpy as np
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Force CPU — no GPU on Render free tier, avoids CUDA memory overhead
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 model = YOLO("best.pt")
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
@@ -17,11 +20,11 @@ groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Warmup: force YOLO through a full inference pass on startup
-    # so the first real /detect request is never slow
+    # Warmup: smaller dummy image = less RAM spike during startup
     print("Warming up YOLO model...")
-    dummy = Image.fromarray(np.zeros((640, 640, 3), dtype=np.uint8))
+    dummy = Image.fromarray(np.zeros((320, 320, 3), dtype=np.uint8))
     model(dummy, verbose=False)
+    gc.collect()  # free warmup memory immediately
     print("Model is hot and ready.")
     yield
 
@@ -77,6 +80,10 @@ def run_yolo(image: Image.Image):
             "label": label,
             "confidence": round(confidence * 100, 1)
         })
+
+    # Free YOLO result memory immediately after extraction
+    del results, result_img, pil_img, buffer
+    gc.collect()
 
     return img_str, detections
 
@@ -165,20 +172,20 @@ async def detect(file: UploadFile = File(...)):
     orig_buffer = io.BytesIO()
     resized.save(orig_buffer, format="JPEG", quality=80)
     orig_b64 = base64.b64encode(orig_buffer.getvalue()).decode()
+    del orig_buffer  # free buffer memory
 
-    # Run YOLO and Vision in parallel
+    # Free original (unresized) image immediately
+    del image
+    gc.collect()
+
+    # Run YOLO and Vision sequentially to avoid simultaneous RAM spike
+    # (parallel asyncio.gather was causing OOM on Render free 512MB tier)
     loop = asyncio.get_event_loop()
-    yolo_future = loop.run_in_executor(None, run_yolo, resized)
-    vision_future = run_vision(orig_b64)
+    img_str, detections = await loop.run_in_executor(None, run_yolo, resized)
+    del resized
+    gc.collect()
 
-    try:
-        (img_str, detections), additional_damage = await asyncio.gather(
-            yolo_future, vision_future
-        )
-    except Exception:
-        # Fallback if parallel execution fails
-        img_str, detections = run_yolo(resized)
-        additional_damage = []
+    additional_damage = await run_vision(orig_b64)
 
     return {
         "image": img_str,
