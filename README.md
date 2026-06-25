@@ -12,15 +12,15 @@ An AI-powered web application that detects physical damage on smartphones using 
 
 **Home Page**
 
-![Home Page](screenshots/scrnshot1.png)
+![Home Page](scrnshot1.png)
 
 **Damage Detection Result**
 
-![Detection Result](screenshots/scrnshot2.png)
+![Detection Result](scrnshot2.png)
 
 **AI Repair Report**
 
-![Repair Report](screenshots/scrnshot3.png)
+![Repair Report](scrnshot.png)
 
 ---
 
