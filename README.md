@@ -20,7 +20,7 @@ An AI-powered web application that detects physical damage on smartphones using 
 
 **AI Repair Report**
 
-![Repair Report](scrnshot.png)
+![Repair Report](scrnshot3.png)
 
 ---
 
